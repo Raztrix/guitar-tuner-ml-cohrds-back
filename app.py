@@ -63,27 +63,37 @@ def handle_ping(data):
 # WebSocket: real-time audio chunk
 @socketio.on('audio_chunk')
 def handle_audio_chunk(data):
+    print("📦 Audio chunk received:", type(data), len(data))
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
         tmp.write(data)
         tmp.flush()
+
         try:
+            print("📁 Saved to:", tmp.name)
             y, sr = librosa.load(tmp.name, sr=None)
+            print("🎵 Audio loaded:", y.shape, "Sample rate:", sr)
+
             pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
+            print("📊 Pitch matrix shape:", pitches.shape)
             index = magnitudes.argmax()
             freq = pitches[index // pitches.shape[1], index % pitches.shape[1]]
+            print("🔍 Detected frequency:", freq)
         except Exception as e:
-            print("WebSocket audio error:", e)
+            print("❌ WebSocket audio error:", e)
             freq = 0
         finally:
             os.remove(tmp.name)
 
     if freq > 0:
         note = get_closest_note(freq)
+        print("✅ Note:", note)
         socketio.emit('note_detected', {
             'note': note,
             'frequency': round(float(freq), 2)
         })
     else:
+        print("⚠️ No valid frequency found")
         socketio.emit('note_detected', {'note': 'No note detected'})
 
 if __name__ == '__main__':
